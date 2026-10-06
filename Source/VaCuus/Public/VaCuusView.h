@@ -19,6 +19,7 @@ class ITextInputMethodContext;
 class ITextInputMethodSystem;
 class UScriptStruct;
 class UVaCuusSubsystem;
+struct FVaCuusElementBoundsQuery;
 struct FVaCuusInputEvent;
 struct FVaCuusViewStatus;
 
@@ -465,6 +466,13 @@ public:
 	 * thread that owns it. Game thread.
 	 */
 	void DumpNodeCount();
+
+	/**
+	 * Asks the UI thread where the element with Query->ElementId is (bead VaCuus-w87.15) --
+	 * vacuus.Click's aim. Answered after the next UI frame's layout, through the shared query
+	 * (FVaCuusElementBoundsQuery); a view with no UI thread answers Missing at once. Game thread.
+	 */
+	void QueryElementBounds(const TSharedRef<FVaCuusElementBoundsQuery>& Query);
 
 	/**
 	 * Publishes every bound model's outstanding fields to the UI thread. Once per frame, from

@@ -196,7 +196,7 @@ something plausible rather than failing. Each now logs, but knowing the rule is 
 4. **A click writes a request; the game decides.** `data-event-click="Pick = 2"` does not
    change the UI's copy of the model. The write is delivered to the game thread as
    `UVaCuusView::OnModelWrite` (model, path, value) and the control snaps back until the
-   game pushes a new value (`Source/VaCuus/Public/VaCuusView.h:127-134`). **A write equal to
+   game pushes a new value (`Source/VaCuus/Public/VaCuusView.h:128-135`). **A write equal to
    the field's current value is swallowed** (the echo rule,
    `Source/VaCuus/Private/VaCuusWriteRouter.h:65-79`), so a request field must return to an
    idle value — 0, -1, "" — once the game has acted, or the second press of the same button
@@ -469,6 +469,14 @@ The `;` there is not a slip — see 1 and 4 below.
 ```
 
 Screenshots land in `Saved/Screenshots/<Platform>/`.
+
+**A click, by element id** — append to the same command list, e.g.
+`-ExecCmds="<your command>, vacuus.Click ready-btn 1.0,"`. `vacuus.Click <element-id>
+[delaySeconds] [viewId]` asks the UI thread where the element is after its next layout,
+presses and releases at its centre through Slate's real routing, and logs who took it:
+`…the press was taken by THE UI` or `…by THE GAME`. It aims at the element, not at
+coordinates, so it survives `data-if` lines that move buttons and window resizes. A
+missing id, or an element that is hidden or has no area, is an Error that says which.
 
 **1. `-ExecCmds` splits on COMMAS, not semicolons.** `ParseExecCommands.cpp:27` is the
 split, and single-quoted commas are the documented escape (`:11-14`). A recipe of ordinary

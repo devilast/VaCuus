@@ -11,6 +11,7 @@
 #include "VaCuusViewStatus.h"
 
 #include "HAL/PlatformProcess.h"
+#include "Misc/ScopeExit.h"
 
 #include <RmlUi/Core.h>
 
@@ -511,6 +512,95 @@ fill { tab-index: auto; }
 		false},
 };
 }	 // namespace VaCuusSnapshotTest
+
+/**
+ * "WHERE IS THE ELEMENT WITH THIS ID", ANSWERED BY THE UI THREAD (bead VaCuus-w87.15). The
+ * observable half of vacuus.Click: a headless driver used to aim with coordinates measured by
+ * hand off a screenshot, and they moved with every data-if and every resize. The query rides
+ * the command queue like everything else that touches the tree, and answers through a shared
+ * result the game thread polls -- no per-frame cost when nobody asks.
+ *
+ * Against GDocument: #btn is a 100x40 border box at (20,20); #nope does not exist; and a
+ * hidden element is FOUND but reported not visible, so a driver can refuse to click it.
+ *
+ * RESTORE-THE-BUG: leave the command unhandled (the query stays Pending) and the first wait
+ * times out; drop the IsVisible() read and the hidden element reads visible.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVaCuusElementBoundsTest, "VaCuus.Input.ElementBounds",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FVaCuusElementBoundsTest::RunTest(const FString& Parameters)
+{
+	using namespace VaCuusSnapshotTest;
+
+	if (!FPlatformProcess::SupportsMultithreading())
+	{
+		AddInfo(TEXT("Skipped: no multithreading support, so there is no worker thread to drive"));
+		return true;
+	}
+	if (!TestFalse(TEXT("RmlUi is down before the test"), FVaCuusEngine::Get().IsInitialized()))
+	{
+		return false;
+	}
+
+	FVaCuusModule& Module = FVaCuusModule::Get();
+	FVaCuusUIThread* UIThread = Module.GetOrStartUIThread();
+	if (!TestNotNull(TEXT("UI thread"), UIThread))
+	{
+		return false;
+	}
+	ON_SCOPE_EXIT
+	{
+		Module.StopUIThread();
+	};
+
+	const TSharedRef<FVaCuusViewStatus> Status = MakeShared<FVaCuusViewStatus>();
+	const uint32 ViewId = UIThread->AllocateViewId();
+	UIThread->EnqueueAddView(ViewId, MakeUnique<FProbeHost>(), FIntPoint(400, 300), Status);
+	UIThread->EnqueueLoadDocumentFromMemory(ViewId, GDocument, /*LoadSerial=*/1);
+	if (!TestTrue(TEXT("UI frames ran"), RunFrames(*UIThread, 2)))
+	{
+		return false;
+	}
+
+	// One query per case, all in flight at once: each carries its own result.
+	auto Ask = [UIThread, ViewId](const TCHAR* Id)
+	{
+		TSharedRef<FVaCuusElementBoundsQuery> Query = MakeShared<FVaCuusElementBoundsQuery>();
+		Query->ElementId = Id;
+		UIThread->EnqueueQueryElementBounds(ViewId, Query);
+		return Query;
+	};
+	const TSharedRef<FVaCuusElementBoundsQuery> Button = Ask(TEXT("btn"));
+	const TSharedRef<FVaCuusElementBoundsQuery> Missing = Ask(TEXT("nope"));
+	UIThread->EnqueueSetVisible(ViewId, /*bVisible=*/false);
+	const TSharedRef<FVaCuusElementBoundsQuery> Hidden = Ask(TEXT("btn"));
+
+	auto Answered = [](const FVaCuusElementBoundsQuery& Query)
+	{ return Query.State.load(std::memory_order_acquire) != FVaCuusElementBoundsQuery::EState::Pending; };
+	for (int32 Frame = 0; Frame < 10 && !(Answered(*Button) && Answered(*Missing) && Answered(*Hidden)); ++Frame)
+	{
+		RunFrames(*UIThread, 1);
+	}
+
+	if (TestTrue(TEXT("the button query was answered"), Answered(*Button))
+		&& TestTrue(TEXT("and found it"), Button->State.load() == FVaCuusElementBoundsQuery::EState::Found))
+	{
+		TestTrue(TEXT("its border box, in view pixels"), Button->Rect == FIntRect(20, 20, 120, 60));
+		TestTrue(TEXT("visible while the document is shown"), Button->bVisible);
+	}
+	TestTrue(TEXT("an id nothing carries is answered Missing, not left pending"),
+		Missing->State.load() == FVaCuusElementBoundsQuery::EState::Missing);
+	if (TestTrue(TEXT("the query after the hide was answered Found"),
+			Hidden->State.load() == FVaCuusElementBoundsQuery::EState::Found))
+	{
+		TestFalse(TEXT("and reported NOT visible, so a driver can refuse to click it"), Hidden->bVisible);
+	}
+
+	UIThread->EnqueueRemoveView(ViewId);
+	RunFrames(*UIThread, 1);
+	return true;
+}
 
 /**
  * bTabEntersFocus IS RmlUi's TAB REACHABILITY, not a by-product of the pointer-coverage

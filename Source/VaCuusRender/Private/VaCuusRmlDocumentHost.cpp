@@ -305,7 +305,7 @@ void FVaCuusRmlDocumentHost::CloseDocument()
 		// no draws behind it is what wipes the view.
 		//
 		// Before this flag existed, HasView() went false the moment Document did, the UI
-		// thread's record loop skipped this view for good (VaCuusUIThread.cpp:1160-1163), and
+		// thread's record loop skipped this view for good (VaCuusUIThread.cpp:1216-1219), and
 		// the player was left with a pixel-perfect ghost of a dead document: clicks fall
 		// through (the empty snapshot below), the cursor reverts, focus is released, and
 		// nothing dismisses it short of loading another document, hiding the widget or
@@ -320,7 +320,7 @@ void FVaCuusRmlDocumentHost::CloseDocument()
 		// NOW, not one frame later, or the game thread keeps answering Handled from the
 		// closed document's geometry for a frame. It is also the only retraction that
 		// survives the one path where the clearing frame cannot run -- an in-band Shutdown
-		// closes every document and then leaves the loop (VaCuusUIThread.cpp:1222-1236) --
+		// closes every document and then leaves the loop (VaCuusUIThread.cpp:1278-1292) --
 		// and there the render side is retracted by Shutdown()'s
 		// ReleaseResources_RenderThread instead, which drops the RT outright.
 		PublishEmptyInteractiveSnapshot();

@@ -179,7 +179,7 @@ IImageWrapperModule* FVaCuusRecordingRenderInterface::CacheImageWrapperModule()
 IImageWrapperModule* FVaCuusRecordingRenderInterface::GetImageWrapperModule()
 {
 	// A plain load, DELIBERATELY with no retry. CacheImageWrapperModule() runs from
-	// FVaCuusRenderModule::StartupModule (VaCuusRender.cpp:1018) and VaCuusRender's
+	// FVaCuusRenderModule::StartupModule (VaCuusRender.cpp:1020) and VaCuusRender's
 	// LoadingPhase is PostConfigInit (VaCuus.uplugin:34-36), so this value is already
 	// final before any document — hence any LoadTexture — can exist, and the static is
 	// never reset. A retry could therefore only ever re-run the failing path and
@@ -1651,7 +1651,7 @@ void FVaCuusRecordingRenderInterface::DrainCompletedDecodes()
 	// gave for the record loop pointed at FVaCuusUIThread::Enqueue). The guarantee has two
 	// halves now:
 	//  - DELIVERY is unconditional. FVaCuusUIThread::RunFrame calls DrainAsyncArrivals() for
-	//    every live host BEFORE its HasView() test (VaCuusUIThread.cpp:1158-1160), so a payload
+	//    every live host BEFORE its HasView() test (VaCuusUIThread.cpp:1214-1216), so a payload
 	//    is taken off the queue even for a view that cannot be recorded at all -- one still
 	//    waiting for its first size, or one between its clearing frame and its next load.
 	//  - PUBLICATION follows on the next frame the view does record. Since Task 12 that is a
@@ -1676,7 +1676,7 @@ void FVaCuusRecordingRenderInterface::DrainCompletedDecodes()
 	// "Placeholder in frame N, payload in N+1" is the COMMON CASE, NOT AN INVARIANT.
 	// LoadTexture is reachable out of frame: AdoptDocument -> Document->Show()
 	// (VaCuusRmlDocumentHost.cpp:225) runs inside DrainCommands, which RunFrame calls before
-	// the record loop (VaCuusUIThread.cpp:1091, the load dispatched from the drain's command
+	// the record loop (VaCuusUIThread.cpp:1143, the load dispatched from the drain's command
 	// switch at :1380-1387), and RmlUi loads file textures lazily from
 	// FileTextureDatabase::EnsureLoaded (TextureDatabase.cpp:118-130) during the layout
 	// Show() forces (ElementDocument.cpp:367 -> ElementImage::GetIntrinsicDimensions). So a

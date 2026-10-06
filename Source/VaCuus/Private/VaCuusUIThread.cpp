@@ -755,6 +755,58 @@ void FVaCuusUIThread::EnqueueDumpNodeCount(uint32 ViewId)
 	Enqueue(MoveTemp(Command));
 }
 
+void FVaCuusUIThread::EnqueueQueryElementBounds(uint32 ViewId, const TSharedRef<FVaCuusElementBoundsQuery>& Query)
+{
+	FVaCuusUICommand Command;
+	Command.Kind = EVaCuusCommandKind::QueryElementBounds;
+	Command.ViewId = ViewId;
+	Command.BoundsQuery = Query;
+	Enqueue(MoveTemp(Command));
+}
+
+void FVaCuusUIThread::AnswerBoundsQueries(bool bShuttingDown)
+{
+	check(IsInUIThread());
+
+	for (const TPair<uint32, TSharedRef<FVaCuusElementBoundsQuery>>& Pending : PendingBoundsQueries)
+	{
+		FVaCuusElementBoundsQuery& Query = *Pending.Value;
+
+		// Every document on the context, not just the one the host calls its own: a script can
+		// open more, and an id is what the asker knows, not which document holds it.
+		Rml::Element* Found = nullptr;
+		IVaCuusDocumentHost* Host = bShuttingDown ? nullptr : FindHost(Pending.Key);
+		if (Rml::Context* Context = Host != nullptr ? Host->GetContext() : nullptr)
+		{
+			const Rml::String Id(TCHAR_TO_UTF8(*Query.ElementId));
+			for (int32 Index = 0; Index < Context->GetNumDocuments() && Found == nullptr; ++Index)
+			{
+				Found = Context->GetDocument(Index)->GetElementById(Id);
+			}
+		}
+
+		if (Found != nullptr)
+		{
+			// The snapshot's own reads, for the snapshot's reason: after this frame's
+			// Context::Update() both are cached and clean (VaCuusInteractiveSnapshot.cpp's
+			// rect computation says why), so the rect is the one the player is about to see.
+			const Rml::Vector2f Position = Found->GetAbsoluteOffset(Rml::BoxArea::Border);
+			const Rml::Vector2f Size = Found->GetBox().GetSize(Rml::BoxArea::Border);
+			Query.Rect = FIntRect(FMath::FloorToInt(Position.x), FMath::FloorToInt(Position.y),
+				FMath::CeilToInt(Position.x + Size.x), FMath::CeilToInt(Position.y + Size.y));
+
+			// WITH ancestors: a hidden document hides its subtree through inheritance only after
+			// a style pass, and this asks the cached flag of every level instead of assuming one.
+			Query.bVisible = Found->IsVisible(/*include_ancestors=*/true);
+		}
+
+		Query.State.store(Found != nullptr ? FVaCuusElementBoundsQuery::EState::Found : FVaCuusElementBoundsQuery::EState::Missing,
+			std::memory_order_release);
+	}
+
+	PendingBoundsQueries.Reset();
+}
+
 void FVaCuusUIThread::EnqueueReleaseTextures(uint32 ViewId, const FString& Source)
 {
 	FVaCuusUICommand Command;
@@ -1154,6 +1206,10 @@ void FVaCuusUIThread::Exit()
 			NumDropped);
 	}
 
+	// 0b. A bounds query drained in the last frame but never answered (the loop left before
+	// its record step) is answered Missing, so no asker is left polling a query that cannot move.
+	AnswerBoundsQueries(/*bShuttingDown=*/true);
+
 	// 1a. EVERY DOCUMENT CLOSES FIRST, while the script host is still alive (the
 	// spec 5 hard-stop split). CloseDocument() fires
 	// IVaCuusScriptHost::OnDocumentClosing through the host seam
@@ -1341,6 +1397,13 @@ void FVaCuusUIThread::RunFrame()
 		{
 			Pair.Value->RecordAndPublishFrame();
 		}
+	}
+
+	// AFTER every view recorded, so each answer reads the tree this frame laid out. An empty
+	// array test on every frame nobody asked anything, which is all of them in a game.
+	if (!PendingBoundsQueries.IsEmpty())
+	{
+		AnswerBoundsQueries(/*bShuttingDown=*/false);
 	}
 
 	// (js gc: M4) The controlled collection point, LAST in the frame: every view has
@@ -1580,6 +1643,19 @@ void FVaCuusUIThread::DrainCommands()
 			// thread is WAITING on this teardown inside PreChange, and a retired view must
 			// not turn it into a Verbose drop and a 100 ms timeout-leak.
 			DropModelForRecompile(Command->ViewId, Command->Model);
+			continue;
+		}
+
+		if (Command->Kind == EVaCuusCommandKind::QueryElementBounds)
+		{
+			// Ahead of the host lookup, which drops an unknown view's command at Verbose: a
+			// dropped query would sit Pending until its asker gave up. Answered after the record
+			// loop, never here -- the tree has not been laid out for this frame yet, so a hide
+			// or a resize queued in the same drain would not be reflected.
+			if (Command->BoundsQuery.IsValid())
+			{
+				PendingBoundsQueries.Emplace(Command->ViewId, Command->BoundsQuery.ToSharedRef());
+			}
 			continue;
 		}
 
@@ -2071,11 +2147,16 @@ int32 FVaCuusUIThread::DrainAndDiscardCommands()
 	check(IsInUIThread());
 
 	int32 NumDropped = 0;
-	while (Queues->Commands.Dequeue())
+	while (TOptional<FVaCuusUICommand> Command = Queues->Commands.Dequeue())
 	{
 		// The dequeued command dies at the end of this iteration -- including, for an
 		// AddView, the host it carries, which was never booted and so holds nothing
-		// RmlUi-affine.
+		// RmlUi-affine. A bounds query is the one kind with someone waiting on it: answered
+		// Missing rather than left Pending (FVaCuusElementBoundsQuery's contract).
+		if (Command->Kind == EVaCuusCommandKind::QueryElementBounds && Command->BoundsQuery.IsValid())
+		{
+			Command->BoundsQuery->State.store(FVaCuusElementBoundsQuery::EState::Missing, std::memory_order_release);
+		}
 		++NumDropped;
 	}
 

@@ -414,7 +414,7 @@ if (const UGameEngine* GameEngine = Cast<UGameEngine>(GEngine))
 
 The game viewport is no substitute: at the session's first load neither
 `UGameViewportClient::GetViewportSize` nor `UGameViewportClient::GetWindow()` gave a size there.
-Queued commands wake the UI thread by themselves (`Source/VaCuus/Private/VaCuusUIThread.cpp:924-925`),
+Queued commands wake the UI thread by themselves (`Source/VaCuus/Private/VaCuusUIThread.cpp:976-977`),
 so the document is laid out and drawn during the load. What stays still is everything the game
 drives: the per-frame pulse is `UVaCuusSubsystem::Tick` → `PublishAndPulse`
 (`Source/VaCuus/Private/VaCuusSubsystem.cpp:262`), which does not run inside `LoadMap`, so model
@@ -432,7 +432,7 @@ code needs the guard whether or not the plugin has one. Use `IsInGameThread()`, 
 the reason that outlives your editor build: in Development the view's assertion catches you,
 but `check()` compiles out in Shipping (`Source/VaCuus/Private/VaCuusView.cpp:328`), and what
 is left is a second producer on a single-producer command queue
-(`Source/VaCuus/Private/VaCuusUIQueues.h:328-330`): a corrupted queue with no assertion and —
+(`Source/VaCuus/Private/VaCuusUIQueues.h:338-340`): a corrupted queue with no assertion and —
 unlike #14 — no log line standing in for it. The configuration that ships is the one that says
 nothing. (Engine line numbers are 5.8.)
 

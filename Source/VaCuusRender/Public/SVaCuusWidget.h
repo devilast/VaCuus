@@ -286,6 +286,22 @@ public:
 	const FGeometry& GetCachedGeometry_Debug() const { return CachedInputGeometry; }
 
 	/**
+	 * Every SVaCuusWidget alive in this process, game thread only (bead VaCuus-w87.15): how
+	 * vacuus.Click finds the widget showing a view without a demo's own pointer to it. A weak
+	 * list pruned on read, so a widget never outlives its own destruction here.
+	 */
+	static TArray<TSharedRef<SVaCuusWidget>> GetLiveWidgets_Debug();
+
+	/** The view this widget drives, or null once detached or collected. */
+	UVaCuusView* GetView_Debug() const { return View.Get(); }
+
+	/**
+	 * A VIEW pixel as a desktop (screen) position, through the geometry of the last tick -- the
+	 * inverse of ToViewPixels, and the space FSlateApplication routes pointer events in.
+	 */
+	FVector2D ViewPixelsToScreen_Debug(const FVector2D& ViewPixels) const;
+
+	/**
 	 * Whether this widget believes it holds Slate's mouse capture.
 	 *
 	 * Exposed for VaCuus.Input.SlateRouting, which asserts the multi-button release

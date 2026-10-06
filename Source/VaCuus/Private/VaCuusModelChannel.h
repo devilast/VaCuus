@@ -100,7 +100,7 @@ struct FVaCuusModelUpdate
  *                VALUE, until the UI says it got it.
  *  - AppliedGeneration -- the UI thread's echo, release/acquire, exactly the shape of the
  *                document loader's load-serial (VaCuusRmlDocumentHost.cpp:263 stores,
- *                VaCuusView.cpp:747 and :864 load). Unacked clears only when the echo is >= the
+ *                VaCuusView.cpp:761 and :864 load). Unacked clears only when the echo is >= the
  *                generation of the LAST publish, never an earlier one: a publish that
  *                superseded it may carry values the older applied generation never saw.
  *

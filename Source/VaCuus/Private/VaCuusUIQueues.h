@@ -73,6 +73,13 @@ enum class EVaCuusCommandKind : uint8
 	Resize,
 
 	/**
+	 * Carries BoundsQuery. THREAD-level in the drain (handled before the host lookup) so a
+	 * query for a retired view is answered Missing instead of dropped and left Pending; the
+	 * answer itself waits for the end of the frame -- see FVaCuusUIThread::AnswerBoundsQueries.
+	 */
+	QueryElementBounds,
+
+	/**
 	 * Creates one data model on the view's context and binds its variables to the model's
 	 * UI-side shadow (M3a). Carries the shared FVaCuusBoundModel.
 	 *
@@ -278,6 +285,9 @@ struct FVaCuusUICommand
 	 * kind, and a Resize from a caller with no opinion, keeps the ratio the view already has.
 	 */
 	float DpRatio = 0.0f;
+
+	/** QueryElementBounds only: the shared result the game thread is polling. */
+	TSharedPtr<FVaCuusElementBoundsQuery> BoundsQuery;
 
 	/** SetVisible only. */
 	bool bVisible = true;

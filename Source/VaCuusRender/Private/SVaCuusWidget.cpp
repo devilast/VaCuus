@@ -85,12 +85,47 @@ static bool IsDigitalLeftStickKey(const FKey& Key)
 		   Key == EKeys::Gamepad_LeftStick_Left || Key == EKeys::Gamepad_LeftStick_Right;
 }
 
+/** GetLiveWidgets_Debug's list. Game thread only: Slate constructs and destroys widgets there. */
+static TArray<TWeakPtr<SVaCuusWidget>> GLiveWidgets;
+
+TArray<TSharedRef<SVaCuusWidget>> SVaCuusWidget::GetLiveWidgets_Debug()
+{
+	check(IsInGameThread());
+
+	GLiveWidgets.RemoveAll([](const TWeakPtr<SVaCuusWidget>& Widget) { return !Widget.IsValid(); });
+
+	TArray<TSharedRef<SVaCuusWidget>> Live;
+	for (const TWeakPtr<SVaCuusWidget>& Widget : GLiveWidgets)
+	{
+		if (TSharedPtr<SVaCuusWidget> Pinned = Widget.Pin())
+		{
+			Live.Add(Pinned.ToSharedRef());
+		}
+	}
+	return Live;
+}
+
+FVector2D SVaCuusWidget::ViewPixelsToScreen_Debug(const FVector2D& ViewPixels) const
+{
+	// ToViewPixels, reversed: view pixels are local units times the geometry's scale.
+	const float Scale = CachedInputGeometry.Scale > 0.0f ? CachedInputGeometry.Scale : 1.0f;
+	return FVector2D(CachedInputGeometry.LocalToAbsolute(FVector2f(ViewPixels) / Scale));
+}
+
 void SVaCuusWidget::Construct(const FArguments& InArgs,
 	UVaCuusView* InView,
 	const TSharedRef<FVaCuusSlateElement>& InElement)
 {
 	View = InView;
 	Element = InElement;
+
+	// SNew has already made the shared reference by the time Construct runs -- operator<<=
+	// calls Construct on the held _Widget (DeclarativeSyntaxSupport.h:979-982) -- so SharedThis
+	// is legal here. Registered for vacuus.Click (GetLiveWidgets_Debug).
+	if (IsInGameThread())
+	{
+		GLiveWidgets.Add(SharedThis(this));
+	}
 
 	SetCanTick(true);
 
@@ -275,7 +310,7 @@ void SVaCuusWidget::Tick(const FGeometry& AllottedGeometry, const double InCurre
 	// so do PushImeSurface and TickVirtualKeyboard; the view is a weak UObject pointer, and the
 	// LoadMap running beside this collects garbage (UnrealEngine.cpp:16315 -> :16729); the
 	// command queue Resize() feeds has exactly one producer, the game thread, and this Tick is
-	// named as one of its parts (VaCuusUIQueues.h:335-337). With checks compiled out, the first
+	// named as one of its parts (VaCuusUIQueues.h:345-347). With checks compiled out, the first
 	// two stop asserting and the last two become data races.
 	//
 	// So the loading thread skips the tick entirely, including TickLog, whose window is

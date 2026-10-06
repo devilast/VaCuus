@@ -351,7 +351,7 @@ bool FVaCuusTouchInputTest::RunTest(const FString& Parameters)
 	}
 
 	// The widget answers Slate from the view's CACHED snapshot, and only PollStatus() refreshes
-	// it -- the same once-per-frame call UVaCuusSubsystem::Tick makes (VaCuusView.cpp:863).
+	// it -- the same once-per-frame call UVaCuusSubsystem::Tick makes (VaCuusView.cpp:877).
 	// One call is enough here: this document's geometry never changes, so its coverage does
 	// not either, and every FReply below is asked of the same published picture.
 	View->PollStatus();

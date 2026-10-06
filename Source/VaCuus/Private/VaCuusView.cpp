@@ -659,6 +659,20 @@ void UVaCuusView::DumpNodeCount()
 	}
 }
 
+void UVaCuusView::QueryElementBounds(const TSharedRef<FVaCuusElementBoundsQuery>& Query)
+{
+	check(IsInGameThread());
+
+	if (FVaCuusUIThread* UIThread = GetUIThread())
+	{
+		UIThread->EnqueueQueryElementBounds(ViewId, Query);
+	}
+	else
+	{
+		Query->State.store(FVaCuusElementBoundsQuery::EState::Missing, std::memory_order_release);
+	}
+}
+
 void UVaCuusView::PublishModelUpdates()
 {
 	check(IsInGameThread());

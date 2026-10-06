@@ -134,6 +134,16 @@ Render your own screen headlessly and look at the pixels:
   -ExecCmds="<your console command that shows the UI>,"
 ```
 
+Press a button the same way the player would, by its id, and read who took the press:
+
+```bash
+  -ExecCmds="<your console command that shows the UI>, vacuus.Click ready-btn 1.0,"
+```
+
+The log line ends `taken by THE UI` or `taken by THE GAME`; a missing or hidden element is
+an Error naming why. Prefer it to `vacuus.M2Demo.Drag`'s coordinates for anything but a
+drag: coordinates move with every `data-if` and every resize.
+
 `setup.md` §4 has the four traps in that pipeline, each with the engine line that causes
 it. The two that waste the most agent time: **`-ExecCmds` splits on commas, not
 semicolons**, and its value swallows every argument to its right — so it goes last and its
