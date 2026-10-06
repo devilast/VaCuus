@@ -571,17 +571,32 @@ bool FVaCuusElementBoundsTest::RunTest(const FString& Parameters)
 		UIThread->EnqueueQueryElementBounds(ViewId, Query);
 		return Query;
 	};
-	const TSharedRef<FVaCuusElementBoundsQuery> Button = Ask(TEXT("btn"));
-	const TSharedRef<FVaCuusElementBoundsQuery> Missing = Ask(TEXT("nope"));
-	UIThread->EnqueueSetVisible(ViewId, /*bVisible=*/false);
-	const TSharedRef<FVaCuusElementBoundsQuery> Hidden = Ask(TEXT("btn"));
-
 	auto Answered = [](const FVaCuusElementBoundsQuery& Query)
 	{ return Query.State.load(std::memory_order_acquire) != FVaCuusElementBoundsQuery::EState::Pending; };
-	for (int32 Frame = 0; Frame < 10 && !(Answered(*Button) && Answered(*Missing) && Answered(*Hidden)); ++Frame)
+	auto WaitFor = [UIThread, &Answered](const TArray<TSharedRef<FVaCuusElementBoundsQuery>>& Queries)
 	{
-		RunFrames(*UIThread, 1);
-	}
+		for (int32 Frame = 0; Frame < 10; ++Frame)
+		{
+			if (Queries.FindByPredicate([&Answered](const TSharedRef<FVaCuusElementBoundsQuery>& Query)
+					{ return !Answered(*Query); }) == nullptr)
+			{
+				return;
+			}
+			RunFrames(*UIThread, 1);
+		}
+	};
+
+	// IN TWO STEPS, AND THE ORDER IS THE CONTRACT: an answer reads the tree at the END of the
+	// frame that drained the query, so a hide drained in that same frame is already in it. The
+	// first run of this test enqueued the hide beside the first queries and was green alone and
+	// red in the full suite -- whether the UI thread woke between the enqueues decided it.
+	const TSharedRef<FVaCuusElementBoundsQuery> Button = Ask(TEXT("btn"));
+	const TSharedRef<FVaCuusElementBoundsQuery> Missing = Ask(TEXT("nope"));
+	WaitFor({Button, Missing});
+
+	UIThread->EnqueueSetVisible(ViewId, /*bVisible=*/false);
+	const TSharedRef<FVaCuusElementBoundsQuery> Hidden = Ask(TEXT("btn"));
+	WaitFor({Hidden});
 
 	if (TestTrue(TEXT("the button query was answered"), Answered(*Button))
 		&& TestTrue(TEXT("and found it"), Button->State.load() == FVaCuusElementBoundsQuery::EState::Found))
