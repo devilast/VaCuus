@@ -345,6 +345,17 @@ path is `UVaCuusBundle`: one asset that packs your whole DevUI tree into a singl
 payload at cook time and serves it through the same VFS paths, so nothing about your
 documents changes.
 
+**What goes in.** Every file of a packed kind under your project's `Content/DevUI` and
+under every other enabled plugin's `Content/DevUI`, minus `Tests/` folders. From
+**VaCuus's own** `Content/DevUI`, only what your documents can depend on: its
+stylesheets (`M5Hud/vacuus-base.rcss` among them) and its fonts (the default face, which a
+Shipping build loads from the bundle and nowhere else). The plugin's demo documents,
+scripts and images stay out — before this, a ten-file UI cooked into a 41-file bundle. The
+cook log line counts what was left out (`… N plugin demo file(s) excluded`). A project that
+does want the demos in its package — the plugin's own test hosts boot them in Shipping —
+sets `bPackPluginDemos=True` under `[VaCuus]` (step 2 below). A project document that has
+the same path as a plugin demo now ships, where it used to be shadowed by the demo.
+
 **Memory-mapped or resident is the engine's call, not a platform law we wrote.** The
 loader maps the payload where `FPlatformProperties::SupportsMemoryMappedFiles()` is
 true and hands us one resident buffer where it is false. Of the platforms this plugin
@@ -372,6 +383,7 @@ LogVaCuus: Mounted bundle '<name>': 24 entries, 461881 bytes, resident buffer (.
 
    [VaCuus]
    BundleAssetPath=/Game/Bundles/MyUIBundle.MyUIBundle
+   ; bPackPluginDemos=True   ; only to ship VaCuus's own demo documents as well
    ```
 
    **The cook-inclusion rule, and why it is loud:** `BundleAssetPath` is a config
@@ -416,7 +428,7 @@ loose-vs-bundle A/B runs. `vacuus.DumpBundle` prints any mounted bundle's index,
 provenance and content hash.
 
 **Your own DevUI files and the loose-file leg — one config line, and only for
-non-Shipping packages.** The bundle packer walks *both* document roots
+non-Shipping packages.** The bundle packer walks every document root
 (`VaCuusContentPaths::GetDocumentRoots()`), so everything under
 `<Project>/Content/DevUI` is inside the bundle and Shipping needs nothing from you. The
 loose copies are a different story: the plugin's staging globs are anchored at

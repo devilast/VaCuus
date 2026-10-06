@@ -1074,6 +1074,9 @@ configure_project() {
 	ini_add_line "${game}" "/Script/UnrealEd.ProjectPackagingSettings" '+DirectoriesToAlwaysCook=(Path="/VaCuus/Bundles")'
 	ini_add_line "${game}" "/Script/UnrealEd.ProjectPackagingSettings" '+DirectoriesToAlwaysCook=(Path="/VaCuus/Spike")'
 	ini_set "${game}" "VaCuus" "BundleAssetPath" "/VaCuus/Bundles/DevUIBundle.DevUIBundle"
+	# Row 15 boots the plugin's demos in Shipping; since bead VaCuus-w87.14 a bundle carries them
+	# only when the project asks (a buyer's bundle gets VaCuus's stylesheets and fonts alone).
+	ini_set "${game}" "VaCuus" "bPackPluginDemos" "True"
 
 	# The plugin must be enabled even when the project was created by an earlier run or by
 	# hand. Refuse rather than rewrite someone's descriptor.

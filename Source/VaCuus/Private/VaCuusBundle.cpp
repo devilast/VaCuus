@@ -2,6 +2,7 @@
 
 #include "VaCuusBundle.h"
 
+#include "VaCuusBundleMount.h"
 #include "VaCuusContentPaths.h"
 #include "VaCuusDefines.h"
 
@@ -43,6 +44,12 @@ FString NormalizePath(const FString& InPath)
 	}
 	Out.ToLowerInline();
 	return Out;
+}
+
+bool IsPluginRuntimeAsset(const FString& NormalizedPath)
+{
+	// Already lowercase (NormalizePath), so a plain suffix test is the case-insensitive one.
+	return NormalizedPath.EndsWith(TEXT(".rcss")) || NormalizedPath.EndsWith(TEXT(".ttf")) || NormalizedPath.EndsWith(TEXT(".otf"));
 }
 
 bool IsExcludedTestPath(const FString& NormalizedPath)
@@ -238,10 +245,13 @@ FString HashToHex(const FBlake3Hash& Hash)
 #if WITH_EDITOR
 namespace VaCuusBundlePack
 {
-TArray<FSourceFile> EnumerateTree(const TArray<FString>& Roots, int32* OutNumShadowed, int32* OutNumTestsExcluded)
+TArray<FSourceFile> EnumerateTree(const TArray<FString>& Roots, int32* OutNumShadowed, int32* OutNumTestsExcluded,
+	const FString& AssetOnlyRoot, int32* OutNumDemosExcluded)
 {
 	int32 NumShadowed = 0;
 	int32 NumTestsExcluded = 0;
+	int32 NumDemosExcluded = 0;
+	const FString AssetOnlyRootFull = AssetOnlyRoot.IsEmpty() ? FString() : FPaths::ConvertRelativePathToFull(AssetOnlyRoot);
 
 	struct FClaim
 	{
@@ -256,6 +266,10 @@ TArray<FSourceFile> EnumerateTree(const TArray<FString>& Roots, int32* OutNumSha
 	for (int32 RootIndex = 0; RootIndex < Roots.Num(); ++RootIndex)
 	{
 		const FString Root = FPaths::ConvertRelativePathToFull(Roots[RootIndex]);
+
+		// Case-SENSITIVE, like the roots' own dedup (VaCuusContentPaths.h, ComposeDocumentRoots):
+		// two spellings of a directory can be two physical roots.
+		const bool bAssetOnly = !AssetOnlyRootFull.IsEmpty() && Root.Equals(AssetOnlyRootFull, ESearchCase::CaseSensitive);
 
 		TArray<FString> Found;
 		for (const TCHAR* Extension : VaCuusBundleFormat::GetPackedExtensions())
@@ -279,6 +293,14 @@ TArray<FSourceFile> EnumerateTree(const TArray<FString>& Roots, int32* OutNumSha
 				// Automation fixtures never ship (spec M6 2(a)); this exclusion is
 				// where the Build.cs "Tests/*.js rides along" staging caveat retires.
 				++NumTestsExcluded;
+				continue;
+			}
+
+			if (bAssetOnly && !VaCuusBundleFormat::IsPluginRuntimeAsset(NormalizedPath))
+			{
+				// BEFORE the claim, on purpose: a demo left out must not shadow a later root's
+				// file of the same path -- that file is what ships now.
+				++NumDemosExcluded;
 				continue;
 			}
 
@@ -325,7 +347,19 @@ TArray<FSourceFile> EnumerateTree(const TArray<FString>& Roots, int32* OutNumSha
 	{
 		*OutNumTestsExcluded = NumTestsExcluded;
 	}
+	if (OutNumDemosExcluded)
+	{
+		*OutNumDemosExcluded = NumDemosExcluded;
+	}
 	return Out;
+}
+
+TArray<FSourceFile> EnumerateShippedTree(int32* OutNumShadowed, int32* OutNumTestsExcluded, int32* OutNumDemosExcluded)
+{
+	const FString AssetOnlyRoot =
+		VaCuusBundleConfig::ShouldPackPluginDemos() ? FString() : VaCuusContentPaths::GetVaCuusDocumentRoot();
+	return EnumerateTree(
+		VaCuusContentPaths::GetDocumentRoots(), OutNumShadowed, OutNumTestsExcluded, AssetOnlyRoot, OutNumDemosExcluded);
 }
 
 bool Pack(TArray<FSourceFile> Files, VaCuusBundleFormat::FCookedIndex& OutIndex, TArray64<uint8>& OutPayload,
@@ -421,8 +455,7 @@ static void HashBundleTree(FCbFieldViewIterator Args, UE::Cook::FCookDependencyC
 		Context.Update(&Value, sizeof(Value));
 	}
 
-	TArray<VaCuusBundlePack::FSourceFile> Files =
-		VaCuusBundlePack::EnumerateTree(VaCuusContentPaths::GetDocumentRoots());
+	TArray<VaCuusBundlePack::FSourceFile> Files = VaCuusBundlePack::EnumerateShippedTree();
 	Files.Sort([](const VaCuusBundlePack::FSourceFile& A, const VaCuusBundlePack::FSourceFile& B) {
 		return A.NormalizedPath < B.NormalizedPath;
 	});
@@ -537,8 +570,9 @@ void UVaCuusBundle::PackForCook()
 {
 	int32 NumShadowed = 0;
 	int32 NumTestsExcluded = 0;
+	int32 NumDemosExcluded = 0;
 	TArray<VaCuusBundlePack::FSourceFile> Files =
-		VaCuusBundlePack::EnumerateTree(VaCuusContentPaths::GetDocumentRoots(), &NumShadowed, &NumTestsExcluded);
+		VaCuusBundlePack::EnumerateShippedTree(&NumShadowed, &NumTestsExcluded, &NumDemosExcluded);
 
 	TArray64<uint8> PayloadBytes;
 	FString Error;
@@ -564,9 +598,11 @@ void UVaCuusBundle::PackForCook()
 	}
 
 	UE_LOG(LogVaCuus, Display,
-		TEXT("Bundle '%s': packed %d file(s), %lld bytes, hash %s (%d shadowed duplicate(s), %d test fixture(s) excluded)"),
+		TEXT("Bundle '%s': packed %d file(s), %lld bytes, hash %s (%d shadowed duplicate(s), %d test fixture(s) excluded, ")
+		TEXT("%d plugin demo file(s) excluded%s)"),
 		*GetPathName(), CookedIndex.Entries.Num(), CookedIndex.PayloadSize,
-		*VaCuusBundleFormat::HashToHex(CookedIndex.ContentHash), NumShadowed, NumTestsExcluded);
+		*VaCuusBundleFormat::HashToHex(CookedIndex.ContentHash), NumShadowed, NumTestsExcluded, NumDemosExcluded,
+		VaCuusBundleConfig::ShouldPackPluginDemos() ? TEXT("; [VaCuus] bPackPluginDemos is on") : TEXT(""));
 }
 
 void UVaCuusBundle::PostSaveRoot(FObjectPostSaveRootContext ObjectSaveContext)
