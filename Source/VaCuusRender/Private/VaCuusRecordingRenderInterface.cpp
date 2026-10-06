@@ -216,7 +216,8 @@ FVaCuusRecordingRenderInterface::~FVaCuusRecordingRenderInterface()
 	{
 		UE_LOG(LogVaCuus, Log,
 			TEXT("Recorder destroyed with unpublished resource traffic (new: %d geometry, %d textures, %d filters, %d shaders; ")
-			TEXT("released: %d geometry, %d textures, %d filters, %d shaders) — dropped"),
+			TEXT("released: %d geometry, %d textures, %d filters, %d shaders) — dropped. Normal at teardown: the recorder and its ")
+			TEXT("replayer go together, so nothing is left to own the resources"),
 			Pending->NewGeometry.Num(), Pending->NewTextures.Num(), Pending->NewFilters.Num(), Pending->NewShaders.Num(),
 			Pending->ReleasedGeometry.Num(), Pending->ReleasedTextures.Num(), Pending->ReleasedFilters.Num(),
 			Pending->ReleasedShaders.Num());

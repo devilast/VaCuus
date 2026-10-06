@@ -288,8 +288,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "VaCuus")
 	bool IsViewValid() const;
 
-	/** Queues a re-layout at this pixel size. Only sent when the size actually changed. */
-	void Resize(FIntPoint ViewSize);
+	/**
+	 * Queues a re-layout at this pixel size and, when DpRatio is positive, at this many
+	 * physical pixels per `dp` (bead VaCuus-w87.12). Only sent when either actually changed.
+	 * DpRatio 0 means "no opinion": the view keeps the ratio it has (1 until told otherwise),
+	 * which is what a world panel wants -- its DrawSize is its pixel size, with no DPI curve.
+	 */
+	void Resize(FIntPoint ViewSize, float DpRatio = 0.0f);
 
 	//~ ------------------------------------------------------------------ Data binding (M3a)
 	//~
@@ -809,4 +814,7 @@ private:
 
 	/** Last size pushed to the UI thread; resize commands are only sent on change. */
 	FIntPoint LastViewSize = FIntPoint::ZeroValue;
+
+	/** The last dp ratio sent; 0 until a caller with an opinion sends one. Game thread. */
+	float LastDpRatio = 0.0f;
 };

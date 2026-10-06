@@ -69,7 +69,7 @@ enum class EVaCuusCommandKind : uint8
 	/** Closes the view's document; the context stays up. */
 	CloseDocument,
 
-	/** Carries only ViewSize; see the note below on coalescing. */
+	/** Carries ViewSize and DpRatio; see the note below on coalescing. */
 	Resize,
 
 	/**
@@ -271,6 +271,13 @@ struct FVaCuusUICommand
 
 	/** View size in pixels; ZeroValue means "leave the current size alone". */
 	FIntPoint ViewSize = FIntPoint::ZeroValue;
+
+	/**
+	 * Resize only: RmlUi's density-independent pixel ratio for the view's context -- what one
+	 * `dp` is in physical pixels (bead VaCuus-w87.12). 0 means "leave it alone", so every other
+	 * kind, and a Resize from a caller with no opinion, keeps the ratio the view already has.
+	 */
+	float DpRatio = 0.0f;
 
 	/** SetVisible only. */
 	bool bVisible = true;

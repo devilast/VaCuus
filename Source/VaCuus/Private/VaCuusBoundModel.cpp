@@ -313,9 +313,17 @@ bool FVaCuusBoundModel::BindToContext(Rml::Context& Context)
 	// against in Element::SetParent. A struct whose every property was refused (spec 3.3's
 	// name rule, or an unsupported kind) still gets an empty model, and the layout walk has
 	// already said why per property.
-	UE_LOG(LogVaCuus, Log, TEXT("VaCuus model '%s' bound on the UI thread: %d of %d top-level variable(s), %d field(s) of '%s'"),
-		*ModelNameStr, NumBound, Layout.GetTopLevelNames().Num(), Layout.GetFields().Num(),
-		Layout.GetStruct() != nullptr ? *Layout.GetStruct()->GetName() : TEXT("none"));
+	//
+	// THE REFUSALS ARE PART OF THE SUMMARY (bead VaCuus-w87.3). "N of M" counts only what the
+	// layout kept, so a model with a refused array used to read "2 of 2" -- the field report's
+	// chest, whose card row was empty. A non-zero count points the reader at the Warnings above.
+	const int32 NumRefused = Layout.GetNumRefused();
+	const FString Refused =
+		NumRefused > 0 ? FString::Printf(TEXT("; %d propert(ies) REFUSED -- see the Warnings above"), NumRefused) : FString();
+	UE_LOG(LogVaCuus, Log,
+		TEXT("VaCuus model '%s' bound on the UI thread: %d of %d top-level variable(s), %d field(s) of '%s'%s"), *ModelNameStr,
+		NumBound, Layout.GetTopLevelNames().Num(), Layout.GetFields().Num(),
+		Layout.GetStruct() != nullptr ? *Layout.GetStruct()->GetName() : TEXT("none"), *Refused);
 
 	return true;
 }

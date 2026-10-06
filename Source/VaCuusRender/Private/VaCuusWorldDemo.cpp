@@ -724,7 +724,7 @@ static void StartInputSmoke(const TArray<FString>& Args)
 		}
 
 		// m4_demo.rml's one interactive element is #write-btn (`button` is a known
-		// interactive tag, VaCuusInteractiveSnapshot.cpp:109-114; nothing else in
+		// interactive tag, VaCuusInteractiveSnapshot.cpp:176-181; nothing else in
 		// the document takes input), so the snapshot names its rect without any
 		// document-side probing.
 		const FVaCuusInteractiveSnapshot& Snapshot = View->GetSnapshot();

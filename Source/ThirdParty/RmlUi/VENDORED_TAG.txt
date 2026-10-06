@@ -495,12 +495,12 @@ tree, with the hunk applied; upstream's pre-patch numbers are 7 lower from line 
 Symptom: an element that becomes visible underneath an ancestor with its own
 `transform` renders unscaled -- full size, at its untransformed layout position --
 instead of picking up the ancestor's resolved matrix. A VaCuus document hits this
-whenever a `data-if` (inline `display: none`, DataViewDefault.cpp:259-261) flips true
+whenever a `data-if` (inline `display: none`, DataViewDefault.cpp:264-266) flips true
 inside a panel whose transform already resolved; and, by a second route, whenever a
 `data-for` clone is created inside such a panel: the clone's own box scales, the
 content filled into it does not. The same missing state breaks hit-testing for those
 elements too: the interactive snapshot gates its projected path on GetTransformState()
-(Source/VaCuusRender/Private/VaCuusInteractiveSnapshot.cpp:432), so the untransformed
+(Source/VaCuusRender/Private/VaCuusInteractiveSnapshot.cpp:499), so the untransformed
 rect is what the game thread hit-tests -- consistently wrong on both channels.
 
 Cause, in this vendored tree:
@@ -526,8 +526,8 @@ Cause, in this vendored tree:
   renders correctly without this patch -- that is not the bug, and a test that inserts
   a leaf passes with the hunk reverted (AfterLateInsert keeps one as its control). The
   insert that fails is content under a parent that has not rendered yet, which is what
-  DataViewFor::Update does to every clone: InsertBefore (DataViewDefault.cpp:551;
-  dirtied, its parent has a state) and then SetInnerRML (:555) while the clone's own
+  DataViewFor::Update does to every clone: InsertBefore (DataViewDefault.cpp:563;
+  dirtied, its parent has a state) and then SetInnerRML (:567) while the clone's own
   state is still null, so the content is parented without a dirty. The clone's first
   render then propagates over ITS `stacking_context`, which is empty because a plain
   block is not a stacking-context container -- the content lives in the CONTAINER's
@@ -640,20 +640,20 @@ Cause, in this tree (line numbers WITH the hunk applied):
   (DataView.cpp:27-36). The comment above the sort gives the intent -- "the 'data-for' view will
   remove children if any of its data variable array size is reduced" (:102-103) -- but the rows are
   not its children. DataViewFor::Update inserts every row as a SIBLING, before the template element
-  (DataViewDefault.cpp:551).
+  (DataViewDefault.cpp:563).
 - A row's views are constructed when the row is parented: SetParent sets `parent` (Element.cpp:2181)
   and then calls SetDataModel (:2206), which runs ApplyDataViewsControllers (:2162). By then the row
   is already at the template's depth. A row carries the template's attributes minus `data-for`
-  (DataViewDefault.cpp:514-519), so its data-attr, data-class, data-if and so on are views on the row
+  (DataViewDefault.cpp:526-531), so its data-attr, data-class, data-if and so on are views on the row
   element itself, at the depth of the data-for view. Their bias is 0 (DataViewDefault.cpp:22, through
-  :60 and :198) or higher (data-value 100 and data-checked 110, :17 and :19). The data-for view's
+  :60 and :203) or higher (data-value 100 and data-checked 110, :17 and :19). The data-for view's
   bias was 0 as well.
 - So the data-for view and the row views with bias 0 share one sort key. Every row view is dirty
   whenever the array is, because an aliased `r.Id` reduces to the root name `Replies`
-  (DataExpression.cpp:1145-1155). std::sort keeps equal keys in no defined order, and the sort
+  (DataExpression.cpp:1146-1156). std::sort keeps equal keys in no defined order, and the sort
   before it orders the views by pointer value (DataView.cpp:98), so which one runs first depends on
   heap addresses. A row view that runs after the data-for view finds its element already
-  destroyed (the RemoveChild(...).reset() at DataViewDefault.cpp:562) and is skipped
+  destroyed (the RemoveChild(...).reset() at DataViewDefault.cpp:574) and is skipped
   (DataView.cpp:112). A row view that runs BEFORE it evaluates `Replies[2]` against the shrunk array,
   gets an empty variable back from DataModel::GetVariable (DataModel.cpp:285-290), and logs the
   warning (DataModel.cpp:321).
@@ -754,3 +754,95 @@ style attribute overrides. VaCuus.Rml.TextTransform.InputByteParity guards that 
 removed it fails -- End in an uppercase "kap" + dotless i field snaps back before the dotless i
 and the typed 'x' lands inside the word; with :169 present it passes. A re-vendor that drops
 :169 must make the transform length-preserving on that path instead.
+
+Patch #10 -- a write the data model delivered elsewhere is not a failed assignment (bead VaCuus-w87.1).
+
+Three files. Include/RmlUi/Core/DataVariable.h gives VariableDefinition three statics (:59-69):
+public ResetAssignmentDelivered and ConsumeAssignmentDelivered, protected MarkAssignmentDelivered.
+Source/Core/DataVariable.cpp defines them over one plain static flag at the end of the file
+(:171-189). Source/Core/DataExpression.cpp's Assign instruction resets the flag, runs the
+assignment, and reports "Could not assign to variable." only when Set() returned false AND the flag
+was not set (:1070-1072).
+
+THE DEFECT IS THE CONTRACT'S, NOT UPSTREAM'S CODE. RmlUi reads a false Set() as "the assignment
+failed" and, separately, as "do not dirty the variable" -- both call sites skip DirtyVariable on
+false (DataExpression.cpp:1192-1195 in SetValue, DataControllerDefault.cpp:57-59). VaCuus's write
+router needs the second without the first: FVaCuusScalarDefinition::Set hands the value to the game
+thread and returns false so the UI shadow is never written (invariant I3). The Assign path then
+logged "Error during execution. Could not assign to variable.", "Failed to execute program with N
+instructions:" and a program dump on EVERY correct data-event-click -- 27 Warning lines in one
+six-minute session in the 2026-10-06 field report, which broke ai-guide.md's rule that a clean
+LogVaCuus is evidence. The change-controller path (data-checked, data-value) never logged.
+
+Reset before, consume after: a stale mark from a change-controller Set, which nobody consumes, can
+never excuse a later assignment that fails before reaching Set (an address GetVariable cannot
+resolve). The REFUSAL path in FVaCuusScalarDefinition::Set does not mark, so a write nobody received
+keeps RmlUi's line.
+
+Line shifts: DataVariable.h +5 from :59 and +9 from old :62; DataExpression.cpp +1 from old :1071.
+Every in-repo citation into either file was moved by that map, each one checked by comparing the
+HEAD line with the shifted current line (all equal); docs/research notes were left as dated records.
+
+Tests: VaCuus.Js.Router.WriteRoutesAndReverts asserts zero "Could not assign to variable" and zero
+"Failed to execute program" lines over its routed clicks; VaCuus.Model.ArrayBinding asserts exactly
+2 over its two REFUSED clicks. Restore-the-bug, Linux, UE 5.8 source editor, -nullrhi, 2026-10-06:
+patch absent -> the router test reads 2 and 2 (Fail); patch present -> both pass, ArrayBinding
+passes either way.
+
+Patch #11 -- a data-for alias that a top-level variable shadows is an Error naming element and document (bead VaCuus-w87.5).
+
+Two files. Source/Core/DataViewDefault.cpp: DataViewFor::Initialize checks the iterator and index
+aliases against the model's top-level variables and logs LT_ERROR once per data-for, with the
+template's address and its document's source URL (:501-506). Source/Core/DataModel.cpp:
+InsertAlias's generic LT_WARNING ("Alias variable '%s' is shadowed by a global variable.") becomes
+the same LT_ERROR, reported only for an element that is already placed -- the data-alias path --
+because a data-for row is inserted BEFORE it is parented (DataViewDefault.cpp:560-563) and has no
+address or document to name (:191-192, edited in place). Both files now include ElementDocument.h
+IN PLACE OF Element.h (which it includes) for GetSourceURL, so neither include block grew a line.
+
+THE DEFECT: DataModel::ResolveAddress tries the top-level variables before any alias
+(DataModel.cpp:234-236), so a shadowed alias is unreachable. Every VaCuus model binds the
+translation variable `t`, and `data-for="t : Traits"` printed the key fallback "Text" on every card
+of a shipped-looking screen while the only diagnostic named neither document nor element.
+
+Line shifts: DataViewDefault.cpp +7 from old :496 (on top of patch #12's +5 from :190); DataModel.cpp
+none. Test: VaCuus.Model.AliasShadowed (VaCuusBindDiagnosticsTest.cpp) -- one Error per data-for for
+`t` and for an ordinary field name, naming `div < div#trows < body` and the document URL, and zero
+of RmlUi's old generic Warning. Seen red before the patch (Fail: no Error, 4 generic Warnings).
+
+Patch #12 -- an empty string in a data-style binding unsets the property; the parse Warning names the element (bead VaCuus-w87.8).
+
+Two files. Source/Core/DataViewDefault.cpp, DataViewStyle::Update -- patch #1's function -- gains
+an empty-value branch that calls Element::RemoveProperty (:189-193): CSSOM's `style.color = ''`
+semantics. Source/Core/Element.cpp's "Syntax error parsing inline property declaration" Warning
+gains " on <element address>" (:597, edited in place, no shift).
+
+THE DEFECT: an empty bound string was handed to SetProperty, failed to parse, warned with no
+element named, and repeated on every update of the variable -- and bindings under a false data-if
+keep evaluating (data-if only writes display:none), so a HIDDEN card with default-constructed
+colour fields produced the noise with nothing on screen to explain it. Worse than noise: returning
+a field to "" left the previous colour in place.
+
+Line shifts: DataViewDefault.cpp +5 from old :190. Test: VaCuus.Model.EmptyStyleValue -- "" sets
+nothing and warns nothing; a colour then "" again removes it; a malformed value still warns, now with
+`div#swatch`. Seen red before the patch (one parse Warning per empty write; the stale colour stayed).
+
+Patch #13 -- a font weight no face of the family has is reported once (bead VaCuus-w87.13).
+
+Two files. Source/Core/FontEngineDefault/FontFamily.h gives FontFamily a set of reported
+(style, weight) misses (:42-43); FontFamily.cpp's GetFaceHandle logs one LT_WARNING per miss when
+the face it chose has a different weight from the one asked for (:50-54), and includes Log.h (:3).
+
+THE DEFECT: GetFaceHandle silently draws the nearest weight. VaCuus ships one face, LatoLatin-Regular,
+so every `font-weight: bold` rule draws regular with nothing logged. Owner decision 2026-10-06: a
+Warning, no bold face shipped. The test is the chosen face's weight, not the loop's best distance --
+a non-matching face met BEFORE an exact match leaves the distance finite, and testing it reported a
+miss that was not one (caught in review before the first build).
+
+Line shifts: FontFamily.h +3 from old :42; FontFamily.cpp +1 from :3 and +6 from old :48; no in-repo
+citations into either file existed. Test: VaCuus.Font.MissingWeight -- two bold paragraphs, one
+Warning. Restore-the-bug, 2026-10-06: Warning removed -> expectation unmet (Fail); latch removed ->
+"found 2 time(s)" (Fail); both present -> pass.
+
+NOT yet offered upstream, any of #10-#13. #11, #12 and #13 are upstream-shaped as they stand; #10
+exists for a write router upstream does not have, and would need a reason to be accepted.

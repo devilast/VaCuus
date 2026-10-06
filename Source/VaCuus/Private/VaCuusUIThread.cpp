@@ -686,12 +686,13 @@ void FVaCuusUIThread::EnqueueCloseDocument(uint32 ViewId)
 	Enqueue(MoveTemp(Command));
 }
 
-void FVaCuusUIThread::EnqueueResize(uint32 ViewId, FIntPoint ViewSize)
+void FVaCuusUIThread::EnqueueResize(uint32 ViewId, FIntPoint ViewSize, float DpRatio)
 {
 	FVaCuusUICommand Command;
 	Command.Kind = EVaCuusCommandKind::Resize;
 	Command.ViewId = ViewId;
 	Command.ViewSize = ViewSize;
+	Command.DpRatio = DpRatio;
 	Enqueue(MoveTemp(Command));
 }
 
@@ -1496,7 +1497,7 @@ void FVaCuusUIThread::DrainCommands()
 			// THE LIVE HALF (spec 2026-08-09 §1), and it happens HERE, immediately after the
 			// install, so that every `{{ t.* }}` re-evaluates against the table that just
 			// arrived rather than the one it replaced. One dirty per model covers every key in
-			// it: RmlUi tracks dirt by TOP-LEVEL name (DataExpression.cpp:1145-1154), and `t`
+			// it: RmlUi tracks dirt by TOP-LEVEL name (DataExpression.cpp:1146-1155), and `t`
 			// is that name. Costs a walk of the model map per PUSH -- not per frame.
 			for (TPair<uint32, TArray<TSharedRef<FVaCuusBoundModel>>>& Pair : Models)
 			{
@@ -1629,6 +1630,19 @@ void FVaCuusUIThread::DrainCommands()
 		if (Command->ViewSize.X > 0 && Command->ViewSize.Y > 0)
 		{
 			Host->SetViewSize(Command->ViewSize);
+		}
+
+		// THE dp RATIO (bead VaCuus-w87.12). The view is laid out in PHYSICAL pixels -- the
+		// widget sizes it from its render bounding rect -- so without this `dp` meant `px` and
+		// a document authored in dp came out half size at 4K. Set on the context, not per
+		// document: RmlUi re-dirties every document's dp properties and media queries itself
+		// when the value changes (Context.cpp:158-173), and ignores an unchanged one.
+		if (Command->DpRatio > 0.0f)
+		{
+			if (Rml::Context* Context = Host->GetContext())
+			{
+				Context->SetDensityIndependentPixelRatio(Command->DpRatio);
+			}
 		}
 
 		switch (Command->Kind)

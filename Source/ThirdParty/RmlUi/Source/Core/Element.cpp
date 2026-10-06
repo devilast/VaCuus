@@ -594,7 +594,7 @@ bool Element::SetProperty(const String& name, const String& value)
 	PropertyDictionary properties;
 	if (!StyleSheetSpecification::ParsePropertyDeclaration(properties, name, value))
 	{
-		Log::Message(Log::LT_WARNING, "Syntax error parsing inline property declaration '%s: %s;'.", name.c_str(), value.c_str());
+		Log::Message(Log::LT_WARNING, "Syntax error parsing inline property declaration '%s: %s;' on %s.", name.c_str(), value.c_str(), GetAddress().c_str()); // VaCuus patch #12
 		return false;
 	}
 	for (auto& property : properties.GetProperties())

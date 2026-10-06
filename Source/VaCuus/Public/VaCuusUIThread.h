@@ -148,7 +148,8 @@ public:
 		FIntPoint ViewSize = FIntPoint::ZeroValue);
 	void EnqueueLoadDocumentFromMemory(uint32 ViewId, const FString& RmlSource, uint64 LoadSerial, FIntPoint ViewSize = FIntPoint::ZeroValue);
 	void EnqueueCloseDocument(uint32 ViewId);
-	void EnqueueResize(uint32 ViewId, FIntPoint ViewSize);
+	/** DpRatio: physical pixels per `dp` for the view's context; 0 leaves the current ratio. */
+	void EnqueueResize(uint32 ViewId, FIntPoint ViewSize, float DpRatio = 0.0f);
 	void EnqueueSetVisible(uint32 ViewId, bool bVisible);
 
 	/**

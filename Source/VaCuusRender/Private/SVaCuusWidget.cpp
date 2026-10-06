@@ -60,6 +60,24 @@ static TAutoConsoleVariable<int32> CVarVaCuusNavStickPress(
 	TEXT("to the UI -- stick navigation goes through the widget's tuned analog repeat clock instead. Set 1 to let the raw ")
 	TEXT("digitized presses drive the navigation grid too."));
 
+/**
+ * WHAT `dp` MEANS IN A SCREEN VIEW (bead VaCuus-w87.12, owner decision 2026-10-06).
+ *
+ * The view is laid out in PHYSICAL pixels: ComputeWindowRect sizes it from the render bounding
+ * rect, which is already scaled. Until this CVar existed VaCuus never set RmlUi's dp ratio, so
+ * `dp` was `px` -- and every document authored in dp (vacuus-base.rcss, the CLI template,
+ * M5Hud) came out half size at 4K. Now each tick hands the view Slate's accumulated geometry
+ * scale, which in a game viewport carries the project's DPI curve (the scale UMG lays out
+ * with), so 1dp is one 1080p-reference pixel at any resolution. `px` is untouched: it stays a
+ * physical pixel, the unit for pixel-exact art.
+ */
+static TAutoConsoleVariable<int32> CVarVaCuusDpFollowsDpiScale(
+	TEXT("vacuus.DpFollowsDpiScale"),
+	1,
+	TEXT("If 1 (default), a screen view's `dp` unit follows Slate's geometry scale -- the project's DPI curve, as UMG uses ")
+	TEXT("-- so dp-authored UI keeps its size across resolutions; `px` stays a physical pixel. Set 0 for the behaviour of ")
+	TEXT("1.0.3 and earlier, dp == px. Read every tick, so a change applies on the next frame."));
+
 /** The four digitized-stick names the gate above filters. */
 static bool IsDigitalLeftStickKey(const FKey& Key)
 {
@@ -257,7 +275,7 @@ void SVaCuusWidget::Tick(const FGeometry& AllottedGeometry, const double InCurre
 	// so do PushImeSurface and TickVirtualKeyboard; the view is a weak UObject pointer, and the
 	// LoadMap running beside this collects garbage (UnrealEngine.cpp:16315 -> :16729); the
 	// command queue Resize() feeds has exactly one producer, the game thread, and this Tick is
-	// named as one of its parts (VaCuusUIQueues.h:328-330). With checks compiled out, the first
+	// named as one of its parts (VaCuusUIQueues.h:335-337). With checks compiled out, the first
 	// two stop asserting and the last two become data races.
 	//
 	// So the loading thread skips the tick entirely, including TickLog, whose window is
@@ -294,7 +312,8 @@ void SVaCuusWidget::Tick(const FGeometry& AllottedGeometry, const double InCurre
 		// Resize is a command, not a direct call: Context::SetDimensions belongs to the
 		// UI thread. The view itself drops unchanged sizes, so the steady state costs
 		// nothing and a burst of resizes coalesces into one relayout.
-		ViewPtr->Resize(ComputeWindowRect(AllottedGeometry).Size());
+		ViewPtr->Resize(ComputeWindowRect(AllottedGeometry).Size(),
+			CVarVaCuusDpFollowsDpiScale.GetValueOnGameThread() != 0 ? AllottedGeometry.Scale : 1.0f);
 
 		// No trigger here: UVaCuusSubsystem::Tick is the once-per-frame pulse, which is
 		// a better slot than a widget's Tick (and the only one that works for views

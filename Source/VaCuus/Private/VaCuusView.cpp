@@ -323,11 +323,15 @@ bool UVaCuusView::IsViewValid() const
 	return GetUIThread() != nullptr;
 }
 
-void UVaCuusView::Resize(FIntPoint ViewSize)
+void UVaCuusView::Resize(FIntPoint ViewSize, float DpRatio)
 {
 	check(IsInGameThread());
 
-	if (ViewSize == LastViewSize || ViewSize.X <= 0 || ViewSize.Y <= 0)
+	// A ratio change alone is a resize too: a window dragged to a monitor with another scale
+	// keeps its pixel size and changes only this. Compared exactly -- it is Slate's geometry
+	// scale, copied, not computed here -- so a steady state sends nothing.
+	const bool bRatioChanged = DpRatio > 0.0f && DpRatio != LastDpRatio;
+	if ((ViewSize == LastViewSize && !bRatioChanged) || ViewSize.X <= 0 || ViewSize.Y <= 0)
 	{
 		return;
 	}
@@ -341,9 +345,14 @@ void UVaCuusView::Resize(FIntPoint ViewSize)
 	// Remembered even though the command may be dropped mid-teardown: the next
 	// load carries this size, so a view that comes back up lays out correctly.
 	LastViewSize = ViewSize;
-	UIThread->EnqueueResize(ViewId, ViewSize);
+	if (bRatioChanged)
+	{
+		LastDpRatio = DpRatio;
+	}
+	UIThread->EnqueueResize(ViewId, ViewSize, bRatioChanged ? DpRatio : 0.0f);
 
-	UE_LOG(LogVaCuus, Verbose, TEXT("View %u: queued resize to %dx%d"), ViewId, ViewSize.X, ViewSize.Y);
+	UE_LOG(LogVaCuus, Verbose, TEXT("View %u: queued resize to %dx%d, dp ratio %g"), ViewId, ViewSize.X, ViewSize.Y,
+		LastDpRatio > 0.0f ? LastDpRatio : 1.0f);
 }
 
 bool UVaCuusView::BindModel(const FString& ModelName, const UScriptStruct* Type)
@@ -442,13 +451,13 @@ bool UVaCuusView::BindModel(const FString& ModelName, const UScriptStruct* Type)
 	if (Model->GetLayout().GetFields().Num() == 0)
 	{
 		// Bound anyway: `data-model` still has to resolve or the whole subtree is inert. But a
-		// struct that contributed nothing is almost always a mistake (every property refused
-		// by the exposure rule, or by RmlUi's name rule), and the per-property lines that say
-		// which are easy to miss among a frame's logging.
+		// struct that contributed nothing is almost always a mistake (every property skipped by
+		// the exposure rule, or refused), and this line ties the bind name to the struct-named
+		// layout Warning just above, which says which members and why (bead VaCuus-w87.3).
 		UE_LOG(LogVaCuus, Warning,
 			TEXT("View %u: model '%s' over '%s' has no bindable field; the model is created so `data-model` resolves, but every ")
-			TEXT("expression against it will be empty (see the per-property lines above)"),
-			ViewId, *ModelName, *Type->GetName());
+			TEXT("expression against it will be empty (the Warning above for '%s' names the members it skipped)"),
+			ViewId, *ModelName, *Type->GetName(), *Type->GetName());
 	}
 
 	// The game-thread half is live from here; the UI thread creates the RmlUi model when it
@@ -456,8 +465,9 @@ bool UVaCuusView::BindModel(const FString& ModelName, const UScriptStruct* Type)
 	Models.Add(ModelKey, Model);
 	UIThread->EnqueueBindModel(ViewId, Model);
 
-	UE_LOG(LogVaCuus, Log, TEXT("View %u: model '%s' over '%s' queued for binding (%d field(s), %d top-level name(s))"), ViewId,
-		*ModelName, *Type->GetName(), Model->GetLayout().GetFields().Num(), Model->GetLayout().GetTopLevelNames().Num());
+	UE_LOG(LogVaCuus, Log, TEXT("View %u: model '%s' over '%s' queued for binding (%d field(s), %d top-level name(s), %d refused)"),
+		ViewId, *ModelName, *Type->GetName(), Model->GetLayout().GetFields().Num(), Model->GetLayout().GetTopLevelNames().Num(),
+		Model->GetLayout().GetNumRefused());
 	return true;
 }
 

@@ -68,7 +68,70 @@ struct FMarkerAttributes
 {
 	bool bPassthrough = false;
 	bool bInteractive = false;
+
+	/** A press handler written in the markup: `data-event-<press>` or inline `on<press>`. */
+	bool bPressHandler = false;
 };
+
+/**
+ * Is this attribute a handler for an event a PRESS produces (bead VaCuus-w87.2)?
+ *
+ * The header's reason for a heuristic -- RmlUi cannot say whether an element has a listener --
+ * does not reach these two spellings, because both are plain attributes and stay on the
+ * element: ApplyDataViewsControllers reads `data-<type>-<modifier>` without removing it
+ * (ElementUtilities.cpp:407-455), and Element::OnAttributeChange instances an `on<event>`
+ * listener from the attribute it leaves in place (Element.cpp:1724-1750). The field report's
+ * buttons were exactly this -- divs with data-event-click -- and every press went to the game.
+ *
+ * PRESS EVENTS ONLY. A hover handler (mouseover, mouseout, mousemove) answers to a cursor that
+ * is merely passing, and an overlay that lights up under it must not swallow the click aimed
+ * at the game behind it. Keyboard events need focus, not pointer coverage, so they are out too.
+ *
+ * Case-SENSITIVE, unlike the two markers: RmlUi itself matches both prefixes byte for byte
+ * (ElementUtilities.cpp:416, Element.cpp:1724), so a `Data-Event-Click` does nothing in RmlUi
+ * and must not claim the press here either.
+ */
+static bool IsPressHandlerAttribute(const Rml::String& Name)
+{
+	static constexpr char DataEventPrefix[] = "data-event-";
+	static constexpr char InlinePrefix[] = "on";
+	static constexpr char CaptureSuffix[] = "capture";
+
+	size_t EventOffset = 0;
+	size_t EventLength = 0;
+	if (Name.compare(0, sizeof(DataEventPrefix) - 1, DataEventPrefix) == 0)
+	{
+		EventOffset = sizeof(DataEventPrefix) - 1;
+		EventLength = Name.size() - EventOffset;
+	}
+	else if (Name.compare(0, sizeof(InlinePrefix) - 1, InlinePrefix) == 0)
+	{
+		// `on<event>capture` registers the same listener in the capture phase
+		// (Element.cpp:1727-1731); the event is what is left once the suffix is off.
+		EventOffset = sizeof(InlinePrefix) - 1;
+		EventLength = Name.size() - EventOffset;
+		const size_t SuffixLength = sizeof(CaptureSuffix) - 1;
+		if (EventLength > SuffixLength && Name.compare(Name.size() - SuffixLength, SuffixLength, CaptureSuffix) == 0)
+		{
+			EventLength -= SuffixLength;
+		}
+	}
+	else
+	{
+		return false;
+	}
+
+	static const char* const PressEvents[] = {
+		"click", "dblclick", "mousedown", "mouseup", "mousescroll", "dragstart", "drag", "dragend"};
+	for (const char* const Event : PressEvents)
+	{
+		if (Name.compare(EventOffset, EventLength, Event) == 0)
+		{
+			return true;
+		}
+	}
+	return false;
+}
 
 static FMarkerAttributes ReadMarkerAttributes(const Rml::Element& Element)
 {
@@ -87,6 +150,10 @@ static FMarkerAttributes ReadMarkerAttributes(const Rml::Element& Element)
 		else if (EqualsIgnoreCaseAscii(Attribute.first, GInteractiveAttribute))
 		{
 			Markers.bInteractive = true;
+		}
+		else if (IsPressHandlerAttribute(Attribute.first))
+		{
+			Markers.bPressHandler = true;
 		}
 	}
 
@@ -459,7 +526,7 @@ void FSnapshotWalk::Visit(Rml::Element* Element, const FIntRect& Clip, bool bFoc
 	// parent IS hit -- and must therefore still be reported here.
 	const bool bInteractive = Computed.pointer_events() != Rml::Style::PointerEvents::None &&
 		(Computed.tab_index() == Rml::Style::TabIndex::Auto || IsKnownInteractiveTag(Element->GetTagName()) ||
-			Markers.bInteractive);
+			Markers.bInteractive || Markers.bPressHandler);
 
 	// `focus: none` blocks this element and everything under it (see Visit's comment).
 	// Evaluated before the flag below so an element that blocks focus is not itself

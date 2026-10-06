@@ -47,7 +47,7 @@ enum class EVaCuusInputEventKind : uint8
 	//~ well formed -- one start, then moves, then exactly one end or cancel -- because
 	//~ RmlUi's duplicate-touch guard is an RMLUI_ASSERTMSG (Context.cpp:895) that this build
 	//~ compiles out: UBT sets NDEBUG in every configuration the plugin ships, so RMLUI_DEBUG is
-	//~ never defined and Debug.h:47-48 expands the macro to nothing (VaCuusRml.Build.cs:99-115
+	//~ never defined and Debug.h:47-48 expands the macro to nothing (VaCuusRml.Build.cs:97-113
 	//~ makes the same point from the build side). A malformed stream degrades silently rather
 	//~ than complaining.
 	//~

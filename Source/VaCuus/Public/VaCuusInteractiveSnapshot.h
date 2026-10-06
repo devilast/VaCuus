@@ -321,13 +321,19 @@ struct FVaCuusTextFieldState
  *     computed `pointer-events` != none
  *     AND ( computed `tab-index` == auto
  *        OR its tag is one of button|input|select|textarea|a
- *        OR it carries the plain attribute `vacuus-interactive` )
+ *        OR it carries the plain attribute `vacuus-interactive`
+ *        OR it carries a press handler in the markup: `data-event-<press>` or
+ *           `on<press>`, where <press> is click, dblclick, mousedown, mouseup,
+ *           mousescroll, dragstart, drag or dragend )
  *
  * WHY A HEURISTIC AT ALL: what actually makes an element interactive in RmlUi is
  * an attached event listener, and RmlUi exposes no way to ask ("does this element
  * have a click listener?" has no public API at 0ae381e). tab-index/tag/attribute
- * are the observable proxies. `vacuus-interactive` is the escape hatch for
- * anything the proxies miss -- a plain <div> wired up from script, most obviously.
+ * are the observable proxies. A handler WRITTEN IN THE MARKUP is the one listener
+ * that is observable, as an attribute (bead VaCuus-w87.2; IsPressHandlerAttribute in
+ * the .cpp says why hover handlers are left out). `vacuus-interactive` is the escape
+ * hatch for anything the proxies still miss -- a plain <div> given a listener from
+ * script with addEventListener, most obviously.
  *
  * The known-interactive tag list includes RmlUi's three non-DOM scrollbar tags
  * (`scrollbarvertical`, `scrollbarhorizontal`, `scrollbarcorner` -- the names

@@ -97,7 +97,7 @@ enum class EVaCuusModelDropState : uint8
  *    `data-event-click="Health = 50"` assignment all reach VariableDefinition::Set -- is
  *    REFUSED by FVaCuusScalarDefinition::Set, which returns false and is counted by
  *    VaCuusData::GetNumRefusedSets(). Both RmlUi call sites skip their own DirtyVariable when
- *    Set returns false (DataControllerDefault.cpp:57-59, DataExpression.cpp:1185-1197).
+ *    Set returns false (DataControllerDefault.cpp:57-59, DataExpression.cpp:1186-1198).
  *  - VaCuus code cannot reach the buffer: UIShadow is private and there is NO non-const
  *    accessor for it anywhere in this class. A second writer cannot be added by accident,
  *    only by adding a member function -- which is the point.

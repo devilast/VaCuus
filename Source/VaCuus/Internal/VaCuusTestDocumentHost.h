@@ -31,7 +31,7 @@
  * and SetVisible are deliberately NOT provided -- they stay pure from the interface, because
  * RecordAndPublishFrame IS the measurement in every one of these tests and SetVisible is a
  * genuine three-way split (no-op / Show-Hide) that only one test drives at all
- * (VaCuusSnapshotTest.cpp:478 is the sole EnqueueSetVisible in the suite).
+ * (VaCuusSnapshotTest.cpp:399 is the sole EnqueueSetVisible in the suite).
  *
  * THREAD HAND-OFF, the rule every derived probe inherits: observations are plain members
  * written on the UI thread and read on the test thread with no lock and no atomic. That is

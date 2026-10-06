@@ -154,7 +154,7 @@ private:
 		}
 
 		// The data-for TEMPLATE keeps its attribute -- only the generated rows drop it
-		// (DataViewDefault.cpp:486-491) -- and rows are inserted BEFORE it (:522-523), so
+		// (DataViewDefault.cpp:491-496) -- and rows are inserted BEFORE it (:534-535), so
 		// "every child without data-for, in order" is exactly the rows, in row order.
 		const int NumChildren = Container->GetNumChildren();
 		for (int Index = 0; Index < NumChildren; ++Index)
@@ -266,7 +266,7 @@ static int32 FindSingleApplyFrame(const TArray<FFrameRecord>& Log, int32 FirstFr
  * not observable without patching vendored RmlUi, and is not claimed. What CAN be said about
  * the one-row change is said here: RmlUi re-evaluates every view in every row on any dirty
  * of the root, but the DOM write gates on compare -- `if (result && entry.value != value)`
- * before SetText (DataViewDefault.cpp:354) -- so every untouched row's captured text must
+ * before SetText (DataViewDefault.cpp:359) -- so every untouched row's captured text must
  * come back byte-identical.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVaCuusDataForRowsTest, "VaCuus.Model.DataForRows",
@@ -440,7 +440,7 @@ bool FVaCuusDataForRowsTest::RunTest(const FString& Parameters)
 	// ---- 5. Front-trim: every row equals the SHIFTED expectation, by design. ----
 	//
 	// Row identity is positional and frozen -- `it` aliases Arr[i] with the creation-time i,
-	// forever (DataViewDefault.cpp:509-518; spec 3.6) -- so removing the front shifts every
+	// forever (DataViewDefault.cpp:521-530; spec 3.6) -- so removing the front shifts every
 	// value under fixed row indices: all surviving rows re-render with their successor's
 	// values and the tail row disappears. CheckApplyFrame's recompute-from-Live IS the
 	// shifted expectation; asserting anything else would be fighting RmlUi's semantics.
@@ -768,7 +768,7 @@ bool FVaCuusDataForIdleTest::RunTest(const FString& Parameters)
 	//
 	// One element changes: the publish, the apply and the evaluations all move again, and a
 	// dirty of the root re-evaluates EVERY row's views (spec 3.6) while only the changed
-	// row's DOM text moves (the compare-before-write gate, DataViewDefault.cpp:354).
+	// row's DOM text moves (the compare-before-write gate, DataViewDefault.cpp:359).
 
 	Live.Killfeed[137].Killer = TEXT("Control");
 	TestEqual(TEXT("the control change marks the field"), Model->Sample(Type, &Live), 1);

@@ -124,6 +124,9 @@ static bool RunFrames(FVaCuusUIThread& UIThread, int32 NumFrames)
  *  #field      an <input type=text>                            -> reported, FOCUSABLE
  *  #noFocus    focus:none around a tab-index:auto button       -> reported, NOT focusable
  *  #noFocusKid the button inside it                            -> reported, NOT focusable
+ *  #evclick    a plain <div> with `data-event-click`           -> reported, NOT focusable
+ *  #onpress    a plain <div> with `onmousedown`                -> reported
+ *  #evhover    a plain <div> with `data-event-mouseover` only  -> NOT reported
  *
  * The last five are controller decision D11's assertions: interactive and focusable
  * are DIFFERENT properties of the same rect. #marked proves the direction that
@@ -139,6 +142,13 @@ static bool RunFrames(FVaCuusUIThread& UIThread, int32 NumFrames)
  * (BaseXMLParser.cpp:306-345) and HasAttribute is a case-sensitive find
  * (Element.cpp:861-864), so a lowercase-only marker lookup silently ignores both
  * of them -- which for the opt-OUT means eating clicks meant for the game.
+ *
+ * The last three are bead VaCuus-w87.2: a press handler the author
+ * wrote IN THE MARKUP is visible to the attribute pass -- `data-event-*` attributes stay on
+ * the element after ApplyDataViewsControllers parses them (ElementUtilities.cpp:407-455), and
+ * an inline `on*` handler is an attribute by definition -- so the element takes the press
+ * without anyone having to know about `vacuus-interactive`. Hover-only handlers do not: an
+ * overlay that lights up under the cursor must not eat the click aimed at the game.
  *
  * Coordinates are absolute and border-box-sized (no borders, no padding) so the
  * expected rects are exactly what the RCSS says.
@@ -161,6 +171,9 @@ div, button { display: block; position: absolute; }
 #field      { display: block; position: absolute; left: 140px; top: 20px; width: 40px; height: 20px; }
 #noFocus    { left: 300px; top: 120px; width: 80px;  height: 40px; focus: none; }
 #noFocusKid { left: 0px;   top: 0px;   width: 40px;  height: 20px; tab-index: auto; }
+#evclick    { left: 140px; top: 70px;  width: 40px;  height: 30px; }
+#onpress    { left: 140px; top: 110px; width: 40px;  height: 30px; }
+#evhover    { left: 140px; top: 150px; width: 40px;  height: 30px; }
 </style>
 </head>
 <body>
@@ -173,6 +186,9 @@ div, button { display: block; position: absolute; }
 	<div id="mark-mixed" VACUUS-INTERACTIVE/>
 	<input id="field" type="text"/>
 	<div id="noFocus" vacuus-interactive><button id="noFocusKid"/></div>
+	<div id="evclick" data-event-click="Pick = 1"/>
+	<div id="onpress" onmousedown="pick"/>
+	<div id="evhover" data-event-mouseover="Hot = 1"/>
 </body>
 </rml>)");
 }	 // namespace VaCuusSnapshotTest
@@ -301,6 +317,18 @@ bool FVaCuusSnapshotTest::RunTest(const FString& Parameters)
 	// 5. The explicit opt-in makes a plain div interactive.
 	TestTrue(TEXT("A vacuus-interactive div is reported"),
 		Snapshot.InteractiveRects.Contains(FIntRect(200, 200, 260, 230)));
+
+	// 5a. A press handler written in the markup is enough (bead VaCuus-w87.2). Before it, every
+	// one of these divs looked right and passed its press to the game -- the field report's
+	// "a clickable div did nothing", found only by a headless click driver. Strip the press
+	// events from the attribute pass and the first two assertions go red.
+	TestTrue(TEXT("A div with data-event-click is reported"),
+		Snapshot.InteractiveRects.Contains(FIntRect(140, 70, 180, 100)));
+	TestFalse(TEXT("but it is a pointer target, not a keyboard one"), Snapshot.IsFocusableAt(FIntPoint(160, 85)));
+	TestTrue(TEXT("A div with an inline onmousedown handler is reported"),
+		Snapshot.InteractiveRects.Contains(FIntRect(140, 110, 180, 140)));
+	TestFalse(TEXT("A div with only a hover handler is NOT reported -- it must not eat the game's click"),
+		Snapshot.Contains(FIntPoint(160, 165)));
 
 	// 5b. Marker names are matched case-insensitively. RmlUi keeps attribute names
 	// verbatim, so without this an author's `vacuus-PassThrough` would be ignored --

@@ -59,7 +59,7 @@ struct FVaCuusModelUpdate
  * the destination's capacity, else the buffer is reused outright (ReallocForCopy,
  * Array.h:710-751 -- `NewMax > PrevMax` on both branches), and the container block grows the
  * same way under Resize, with the SHRINK caveat SyncCopy's comment carries
- * (VaCuusModelLayout.cpp:45-52: a large trim may move the block). So a same-shape republish
+ * (VaCuusModelLayout.cpp:51-58: a large trim may move the block). So a same-shape republish
  * is assignment-shaped, not allocation-shaped -- a claim spec 9 checks with a counting
  * allocator rather than takes from this comment.
  *

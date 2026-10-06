@@ -48,7 +48,7 @@
  * WHY THE MODEL IS NESTED. The differ only dirties a field whose value really changed, so the
  * defect needs a variable that is dirtied while the bound value stands still — and RmlUi gives
  * that away for free: a nested leaf dirties its ROOT's name (VaCuusBoundModel.cpp:379-387) and
- * views are matched by the FIRST name of their address (DataExpression.cpp:1144-1153), so
+ * views are matched by the FIRST name of their address (DataExpression.cpp:1145-1154), so
  * `Bar.Tick` moving re-evaluates both bindings. The shipped reference HUD hits the same shape
  * per row: refhud.rml:128 binds `data-style-width="row.Ping * 0.3 + 'px'"` inside a `data-for`,
  * where ANY field of ANY row dirties the whole array name.

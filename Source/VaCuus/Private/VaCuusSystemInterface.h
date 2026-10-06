@@ -24,7 +24,7 @@ public:
 	 * lookup through the same immutable snapshot `vacuus.translate` reads
 	 * (FVaCuusTranslationRegistry). RmlUi calls this at TEXT INSTANCING — every
 	 * parsed text chunk (Factory.cpp:336), data-bound text re-evaluation
-	 * (DataViewDefault.cpp:369), textarea/title (XMLNodeHandlerTextArea.cpp:43,
+	 * (DataViewDefault.cpp:374), textarea/title (XMLNodeHandlerTextArea.cpp:43,
 	 * XMLNodeHandlerHead.cpp:123) — never again for text already in the tree, so a
 	 * new table reaches loaded documents only through a reload (the header of
 	 * UVaCuusSubsystem::SetTranslationTable carries the workflow).

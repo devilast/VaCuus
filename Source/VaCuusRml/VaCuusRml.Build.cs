@@ -50,9 +50,7 @@ public class VaCuusRml : ModuleRules
 			string Declared = string.Join(", ", Descriptor.GetSupportedTargetPlatformNames() ?? new string[0]);
 			throw new BuildException(
 				$"VaCuus does not support {Target.Platform}. VaCuus.uplugin declares SupportedTargetPlatforms " +
-				$"= [{Declared}], and the plugin has never been built or run anywhere else. Android and iOS in " +
-				$"particular are not merely unbuilt: text entry, touch scrolling and app-lifecycle handling are " +
-				$"unimplemented there (docs/research/mobile-support.md costs the work out). You are seeing this " +
+				$"= [{Declared}], and the plugin has never been built or run anywhere else. You are seeing this " +
 				$"message -- rather than the plugin quietly vanishing, which is what happens without a module " +
 				$"dependency -- because one of your modules depends on a VaCuus module, which makes UBT compile " +
 				$"part of the plugin even after dropping it for {Target.Platform}. Drop the dependency for this " +

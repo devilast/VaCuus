@@ -642,7 +642,7 @@ static_assert(sizeof(FVaCuusCommandHashImage) ==
  * third channel into the replayer.
  *
  * The recorder holds up its end of it: CompileGeometry mints a strictly increasing handle and
- * ReleaseGeometry never recycles one (VaCuusRecordingRenderInterface.cpp:140, :173-181), so a
+ * ReleaseGeometry never recycles one (VaCuusRecordingRenderInterface.cpp:233, :173-181), so a
  * re-compile also changes the Geometry field of every command that draws with it and this
  * hash sees the change on its own. Double-covered; either leg alone would suffice.
  *

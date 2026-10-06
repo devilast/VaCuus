@@ -1460,7 +1460,14 @@ static void HitTest(const TArray<FString>& Args)
 }
 
 /**
- * Puts the pointer at a window position and lets Slate route the move.
+ * Puts the pointer at a position and lets Slate route the move.
+ *
+ * THE POSITION IS IN SCREEN PIXELS, and every vacuus.* pointer command shares this one
+ * coordinate space (bead VaCuus-w87.15). FPointerEvent's first position IS the screen-space
+ * position (Events.h:721-731), and Slate hit-tests windows in desktop
+ * space, so a value read off a screenshot means "this window pixel" only while the window's
+ * top-left sits at the desktop origin -- always true offscreen and in fullscreen, untrue for
+ * a windowed editor that is not at 0,0. The help texts used to say "window pixels".
  *
  * DELIBERATELY GOES THROUGH FSlateApplication rather than calling the widget: this
  * way the whole real path is exercised -- hit-test grid, bubble path,
@@ -1731,7 +1738,7 @@ static void SimulateMouseMove(const TArray<FString>& Args)
 {
 	if (Args.Num() < 2)
 	{
-		UE_LOG(LogVaCuus, Error, TEXT("vacuus.M1HUD.Mouse expects two arguments: <x> <y> in window pixels"));
+		UE_LOG(LogVaCuus, Error, TEXT("vacuus.M1HUD.Mouse expects two arguments: <x> <y> in screen pixels"));
 		return;
 	}
 
@@ -1740,7 +1747,7 @@ static void SimulateMouseMove(const TArray<FString>& Args)
 
 static FAutoConsoleCommand GSimulateMouseCommand(
 	TEXT("vacuus.M1HUD.Mouse"),
-	TEXT("Move the pointer to <x> <y> (window pixels) through Slate's real routing. Headless hover verification."),
+	TEXT("Move the pointer to <x> <y> (screen pixels -- the window's own while it sits at 0,0, as offscreen and fullscreen windows do) through Slate's real routing. Headless hover verification."),
 	FConsoleCommandWithArgsDelegate::CreateStatic(&SimulateMouseMove));
 
 /**
@@ -2068,7 +2075,7 @@ static void TypeShot(const TArray<FString>& Args)
 	if (Args.Num() < 2)
 	{
 		UE_LOG(LogVaCuus, Error,
-			TEXT("vacuus.M1HUD.TypeShot expects <x> <y> [text]: window pixels of the field, then what to type"));
+			TEXT("vacuus.M1HUD.TypeShot expects <x> <y> [text]: screen pixels of the field, then what to type"));
 		return;
 	}
 
@@ -3116,7 +3123,7 @@ static void Wheel(const TArray<FString>& Args)
 	if (Args.Num() < 3)
 	{
 		UE_LOG(LogVaCuus, Error,
-			TEXT("vacuus.M2Demo.Wheel expects <x> <y> <delta> [delaySeconds]: window pixels, then notches (+ is up)"));
+			TEXT("vacuus.M2Demo.Wheel expects <x> <y> <delta> [delaySeconds]: screen pixels, then notches (+ is up)"));
 		return;
 	}
 
@@ -3132,7 +3139,7 @@ static void Drag(const TArray<FString>& Args)
 	if (Args.Num() < 4)
 	{
 		UE_LOG(LogVaCuus, Error,
-			TEXT("vacuus.M2Demo.Drag expects <x0> <y0> <x1> <y1> [steps] [delaySeconds], in window pixels"));
+			TEXT("vacuus.M2Demo.Drag expects <x0> <y0> <x1> <y1> [steps] [delaySeconds], in screen pixels"));
 		return;
 	}
 
