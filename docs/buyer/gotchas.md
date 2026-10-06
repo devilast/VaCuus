@@ -159,6 +159,14 @@ two RmlUi extensions. The control run that settles the resolution rule: from a
 subdirectory sheet, a bare `Michroma-Regular.ttf` gave
 `Failed to open file 'Michroma-Regular.ttf' (resolved to …/Content/DevUI/Michroma-Regular.ttf)`.
 
+**`font-weight: bold` over LatoLatin draws REGULAR — the plugin ships one face.** RmlUi
+picks the nearest weight a family has and never fakes a bold
+(`FontEngineDefault/FontFamily.cpp:23-46`), so every bold rule over the plugin's font
+renders regular. It used to say nothing; it now logs one Warning per family, style and
+weight it had to substitute: `Font family 'latolatin' has no normal face of weight 700;
+drawing its weight 400 face instead.` For real bold, add a bold face under your family's
+name with `@font-face` (`font-weight: bold`) as above.
+
 **Variable fonts render at their default weight for every weight you ask for.** The
 default font engine calls `FT_New_Face` and never sets a variation axis, so one variable
 file cannot serve `font-weight: 400` and `700` differently — you get the default
@@ -217,8 +225,10 @@ screenful. Only `transform` disabled clipping outright.
 The replayer now attaches a stencil target to the replay pass and honours both commands
 (`Source/VaCuusRender/Private/VaCuusReplayRenderer.cpp`, `EnableClipMask` /
 `RenderToClipMask`). `transform: scale()` on a root wrapper — the cheap way to author
-against a fixed 1920×1080 surface here, because there is no `calc()` and `dp == px` — no
-longer costs you every scroll container in the document.
+against a fixed 1920×1080 surface here, because there is no `calc()` — no longer costs you
+every scroll container in the document. (After 1.0.3, `dp` follows the DPI
+curve — setup.md §2, "Binding and input rules", rule 6 — so authoring in `dp` is the other
+way to keep sizes resolution-independent, with no wrapper at all.)
 
 **What it costs, since it is not free.** The stencil is allocated **lazily**: a view whose
 document never takes the mask path never allocates one, and `stat vacuus`'s *Clip Mask
@@ -493,7 +503,7 @@ is what makes that ordering hold across the thread boundary.
 **10. Your `data-for` list renders one extra invisible row — or styling misses rows.**
 Cause: the element carrying `data-for` is a hidden clone TEMPLATE, not the first row —
 `DataViewFor::Initialize` sets `display: none` on it and every generated row is a
-clone inserted before it (`m3_demo.rml:71-79`, citing DataViewDefault.cpp:474, :523).
+clone inserted before it (`m3_demo.rml:71-79`, citing DataViewDefault.cpp:479, :535).
 Do: hang row styling off the template's own class list; never expect the template
 element itself to render.
 
