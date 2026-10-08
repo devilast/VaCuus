@@ -245,6 +245,16 @@ FString HashToHex(const FBlake3Hash& Hash)
 #if WITH_EDITOR
 namespace VaCuusBundlePack
 {
+	
+namespace
+{
+	struct FClaim
+	{
+		int32 RootIndex = 0;
+		int32 OutIndex = 0;
+	};
+}
+
 TArray<FSourceFile> EnumerateTree(const TArray<FString>& Roots, int32* OutNumShadowed, int32* OutNumTestsExcluded,
 	const FString& AssetOnlyRoot, int32* OutNumDemosExcluded)
 {
@@ -252,12 +262,6 @@ TArray<FSourceFile> EnumerateTree(const TArray<FString>& Roots, int32* OutNumSha
 	int32 NumTestsExcluded = 0;
 	int32 NumDemosExcluded = 0;
 	const FString AssetOnlyRootFull = AssetOnlyRoot.IsEmpty() ? FString() : FPaths::ConvertRelativePathToFull(AssetOnlyRoot);
-
-	struct FClaim
-	{
-		int32 RootIndex = 0;
-		int32 OutIndex = 0;
-	};
 
 	TArray<FSourceFile> Out;
 	TMap<FString, FClaim> ClaimedBy;
